@@ -1,0 +1,15 @@
+{
+  "name": "emergency-room-status",
+  "version": "1.0.0",
+  "description": "실시간 응급실 병상 현황 서비스 — 국립중앙의료원 e-GEN 공공데이터 활용",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["emergency", "hospital", "korea", "public-data", "sse"],
+  "license": "MIT"
+}

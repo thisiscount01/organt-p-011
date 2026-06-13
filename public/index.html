@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#C62828">
+  <meta name="description" content="내 주변 응급실 실시간 병상 현황 — e-GEN 공공데이터 기반">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="응급실현황">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/style.css">
+  <title>응급실 실시간 현황</title>
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="app-header" role="banner">
+    <div class="header-inner">
+      <div class="header-brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"
+             fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <rect x="3" y="3" width="18" height="18" rx="3"/>
+          <line x1="12" y1="8" x2="12" y2="16"/>
+          <line x1="8"  y1="12" x2="16" y2="12"/>
+        </svg>
+        <h1 class="header-title">응급실 현황</h1>
+      </div>
+
+      <div class="conn-widget" id="connWidget" aria-live="polite" aria-label="실시간 연결 상태">
+        <span class="conn-dot" id="connDot" aria-hidden="true"></span>
+        <span class="conn-label" id="connLabel">연결 중</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== ALERT BANNERS ===== -->
+  <div class="alert-stack" role="region" aria-label="서비스 알림">
+
+    <!-- 캐시 신선도 경고 -->
+    <div class="alert alert--warn" id="alertStale" hidden role="alert">
+      <svg class="alert-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <span id="alertStaleMsg">데이터 갱신이 지연되고 있습니다. 중요한 정보는 직접 전화로 확인하세요.</span>
+    </div>
+
+    <!-- e-GEN 연결 불안정 -->
+    <div class="alert alert--error" id="alertDegraded" hidden role="alert">
+      <svg class="alert-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+      <span>e-GEN 연결 불안정 — 마지막으로 받은 데이터를 표시합니다</span>
+    </div>
+
+    <!-- SSE 스트림 단절 -->
+    <div class="alert alert--info" id="alertDisconnected" hidden role="alert">
+      <svg class="alert-icon alert-icon--spin" viewBox="0 0 24 24" aria-hidden="true"
+           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <polyline points="1 4 1 10 7 10"/>
+        <path d="M3.51 15a9 9 0 1 0 .49-3.67"/>
+      </svg>
+      <span id="alertDisconnectedMsg">실시간 스트림 연결 끊김 — 재연결 시도 중...</span>
+    </div>
+  </div>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="app-main" id="appMain">
+
+    <!-- 위치 거부 안내 -->
+    <section class="view-panel" id="panelLocationDenied" hidden aria-labelledby="locDeniedTitle">
+      <div class="state-emoji" role="img" aria-label="위치 핀">📍</div>
+      <h2 class="state-title" id="locDeniedTitle">위치 접근이 필요합니다</h2>
+      <p class="state-body">
+        주변 응급실을 찾으려면 위치 권한이 필요합니다.<br>
+        브라우저 주소창의 자물쇠(🔒) 아이콘을 탭해 위치를 허용해 주세요.
+      </p>
+      <button class="btn btn--primary" id="btnRetryLocation" type="button">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="10" r="3"/>
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+        </svg>
+        위치 다시 요청
+      </button>
+      <div class="city-fallback">
+        <p class="city-fallback-label">또는 지역을 선택하세요</p>
+        <div class="city-grid" id="cityGrid">
+          <button class="btn btn--outline city-btn" type="button" data-lat="37.5665" data-lng="126.9780">서울</button>
+          <button class="btn btn--outline city-btn" type="button" data-lat="35.1796" data-lng="129.0756">부산</button>
+          <button class="btn btn--outline city-btn" type="button" data-lat="35.8714" data-lng="128.6014">대구</button>
+          <button class="btn btn--outline city-btn" type="button" data-lat="37.4563" data-lng="126.7052">인천</button>
+          <button class="btn btn--outline city-btn" type="button" data-lat="35.1595" data-lng="126.8526">광주</button>
+          <button class="btn btn--outline city-btn" type="button" data-lat="36.3504" data-lng="127.3845">대전</button>
+          <button class="btn btn--outline city-btn" type="button" data-lat="35.5384" data-lng="129.3114">울산</button>
+          <button class="btn btn--outline city-btn" type="button" data-lat="37.2636" data-lng="127.0286">수원</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 로딩 스켈레톤 -->
+    <section id="panelLoading" aria-label="응급실 정보 불러오는 중">
+      <div class="skel-meta">
+        <div class="skel-line" style="width:55%;height:18px;"></div>
+        <div class="skel-line" style="width:35%;height:14px;margin-top:6px;"></div>
+      </div>
+      <ul class="hospital-list" id="skeletonList" aria-hidden="true" role="presentation"></ul>
+    </section>
+
+    <!-- 결과 목록 -->
+    <section id="panelResults" hidden aria-labelledby="resultsHeading">
+
+      <!-- 메타 정보 + 범례 -->
+      <div class="results-meta">
+        <div class="meta-row">
+          <h2 class="meta-heading" id="resultsHeading">
+            <span id="metaCount"></span>
+          </h2>
+          <span class="meta-fresh" id="metaFresh" aria-live="polite"></span>
+        </div>
+        <div class="legend" role="list" aria-label="병상 상태 설명">
+          <div class="legend-item" role="listitem">
+            <span class="legend-badge badge--available" aria-hidden="true">✓</span>
+            <span>여유 <small>(5개 이상)</small></span>
+          </div>
+          <div class="legend-item" role="listitem">
+            <span class="legend-badge badge--low" aria-hidden="true">▲</span>
+            <span>부족 <small>(5개 미만)</small></span>
+          </div>
+          <div class="legend-item" role="listitem">
+            <span class="legend-badge badge--full" aria-hidden="true">✕</span>
+            <span>만원</span>
+          </div>
+          <div class="legend-item" role="listitem">
+            <span class="legend-badge badge--unknown" aria-hidden="true">?</span>
+            <span>정보없음</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 병원 카드 목록 -->
+      <ul class="hospital-list" id="hospitalList" role="list" aria-label="주변 응급실 목록"></ul>
+
+      <!-- 빈 결과 -->
+      <div class="empty-state" id="emptyState" hidden>
+        <div class="state-emoji" role="img" aria-label="검색">🔍</div>
+        <p>반경 <strong id="emptyRadiusText"></strong> 이내에 응급실 정보가 없습니다.</p>
+        <button class="btn btn--outline" id="btnExpandRadius" type="button">반경 50km로 확장</button>
+      </div>
+    </section>
+
+    <!-- 오류 -->
+    <section class="view-panel" id="panelError" hidden aria-labelledby="errTitle">
+      <div class="state-emoji" role="img" aria-label="경고">⚡</div>
+      <h2 class="state-title" id="errTitle">오류가 발생했습니다</h2>
+      <p class="state-body" id="errMsg"></p>
+      <button class="btn btn--primary" id="btnRetry" type="button">다시 시도</button>
+    </section>
+
+  </main>
+
+  <!-- ===== RADIUS FAB ===== -->
+  <div class="fab-wrap" id="fabWrap" hidden>
+    <label class="fab-label" for="radiusSel">반경</label>
+    <select class="fab-select" id="radiusSel" aria-label="검색 반경 선택">
+      <option value="5">5 km</option>
+      <option value="10" selected>10 km</option>
+      <option value="20">20 km</option>
+      <option value="50">50 km</option>
+    </select>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
